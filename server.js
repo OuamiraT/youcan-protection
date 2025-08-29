@@ -1,34 +1,28 @@
-import express from 'express';
-import redis from 'redis';
-
+const express = require('express');
 const app = express();
-app.use(express.json());
-
-const redisClient = redis.createClient();
-await redisClient.connect();
-
-app.use(async (req, res, next) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
-  const blocked = await redisClient.get(`block:${ip}`);
-  if (blocked) return res.status(403).json({ error: '🚫 محظور مؤقتاً' });
-  next();
-});
-
-app.use(async (req, res, next) => {
-  const isBot = req.headers['x-bot-status'] === 'true';
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
-  if (isBot) {
-    await redisClient.set(`block:${ip}`, '1', { EX: 86400 });
-    return res.status(403).json({ error: '🚫 تم حظرك كبوت مشبوه.' });
-  }
-  next();
-});
-
-app.post('/order', (req, res) => {
-  res.json({ success: true, message: '✅ الطلب مقبول' });
-});
 
 const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+
+// ✅ Route simple
+app.get('/', (req, res) => {
+  res.send('✅ Server is working!');
+});
+
+// ✅ Route to detect bots via user-agent
+app.post('/validate', (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const isBot = /bot|crawl|spider|slurp|curl|wget/i.test(userAgent);
+
+  if (isBot) {
+    return res.status(403).send('🛑 Bot detected.');
+  }
+
+  res.status(200).send('✅ Human verified.');
+});
+
+// ✅ Start server
 app.listen(PORT, () => {
-  console.log(`🔒 السيرفر خدام على port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });

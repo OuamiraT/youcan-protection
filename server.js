@@ -1,4 +1,3 @@
-// server.js
 import express from 'express';
 const app = express();
 app.use(express.json());
@@ -11,6 +10,12 @@ function getTodayKey(fingerprint) {
   return `${fingerprint}:${today}`;
 }
 
+// ✅ Route للواجهة الرئيسية
+app.get('/', (req, res) => {
+  res.send('✅ Anti-bot backend is working!');
+});
+
+// ✅ Endpoint للتحقق من عدد الطلبات
 app.post('/validate', (req, res) => {
   const fp = req.body.fingerprint;
   if (!fp) return res.status(400).send("❌ fingerprint required");
@@ -26,6 +31,7 @@ app.post('/validate', (req, res) => {
   res.status(200).send("✅ Allowed");
 });
 
+// ✅ تشغيل السيرفر
 app.listen(3000, () => {
   console.log("✅ Anti-bot backend running on port 3000");
 });

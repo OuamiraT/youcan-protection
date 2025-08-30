@@ -1,37 +1,35 @@
+// server.js
 import express from 'express';
+import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { createClient } from 'redis';
+
 const app = express();
 app.use(express.json());
 
-const MAX_PER_DAY = 4;
-const memoryStore = new Map();
+// Connect to Redis
+const redisClient = createClient({ url: process.env.REDIS_URL });
+await redisClient.connect();
 
-function getTodayKey(fingerprint) {
-  const today = new Date().toISOString().slice(0, 10);
-  return `${fingerprint}:${today}`;
-}
-
-// ✅ Route للواجهة الرئيسية
-app.get('/', (req, res) => {
-  res.send('✅ Anti-bot backend is working!');
+// Rate limit: 4 orders/day per fingerprint+IP
+const limiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: 4,
+  keyGenerator: (req) => {
+    const fp = req.body.fingerprint || 'nofp';
+    const ip = req.ip;
+    return `${fp}:${ip}`;
+  },
+  handler: (req, res) => res.status(429).send("❌ Limit reached"),
+  store: new RedisStore({ sendCommand: (...args) => redisClient.sendCommand(args) })
 });
 
-// ✅ Endpoint للتحقق من عدد الطلبات
-app.post('/validate', (req, res) => {
-  const fp = req.body.fingerprint;
-  if (!fp) return res.status(400).send("❌ fingerprint required");
-
-  const key = getTodayKey(fp);
-  const count = memoryStore.get(key) || 0;
-
-  if (count >= MAX_PER_DAY) {
-    return res.status(429).send("❌ Limit reached");
-  }
-
-  memoryStore.set(key, count + 1);
+app.post('/validate', limiter, (req, res) => {
+  if (!req.body.fingerprint) return res.status(400).send("❌ fingerprint required");
   res.status(200).send("✅ Allowed");
 });
 
-// ✅ تشغيل السيرفر
-app.listen(3000, () => {
-  console.log("✅ Anti-bot backend running on port 3000");
-});
+app.get('/', (req, res) => res.send('✅ Anti-bot backend is working!'));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Running on port ${PORT}`));
